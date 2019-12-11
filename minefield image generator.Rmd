@@ -1,0 +1,133 @@
+---
+title: "minefield generator"
+author: "Bram van Smoorenburg"
+date: "27 November 2018"
+output: html_document
+---
+
+```{r}
+height=20
+width=20
+minesfrac=0.25
+```
+
+```{r}
+edgewidth=5
+squarewidth=20
+```
+
+```{r}
+library(png)
+```
+
+```{r}
+totmines=ceiling(minesfrac*height*width)
+fieldrand=matrix(runif(prod(height,width)),ncol = width)
+fieldrand[1,width]=fieldrand[2,width]=1
+fieldmines=fieldrand-fieldrand
+fieldmines[rank(fieldrand,ties.method = "random")<=totmines]=1
+```
+
+compute surrounding cells
+```{r}
+compute_neighb_sum <- function(mx) {
+  mx.ind <- cbind(        # create a 2 wide matrix of all possible indices in input
+    rep(seq.int(nrow(mx)), ncol(mx)), 
+    rep(seq.int(ncol(mx)), each=nrow(mx))
+  )
+  sum_neighb_each <- function(x) {
+    near.ind <- cbind(         # for each x, y coord, create an index of all surrounding values
+      rep(x[[1]] + -1:1, 3),
+      rep(x[[2]] + -1:1, each=3)
+    )
+    near.ind.val <- near.ind[  # eliminate out of bound values, or the actual x,y coord itself
+      !(
+        near.ind[, 1] < 1 | near.ind[, 1] > nrow(mx)  |
+        near.ind[, 2] < 1 | near.ind[, 2] > ncol(mx)  |
+        (near.ind[, 1] == x[[1]] & near.ind[, 2] == x[[2]])
+      ),
+     ]
+    sum(mx[near.ind.val])      # Now sum the surrounding cell values
+  }
+  `dim<-`(                     # this is just to return in same matrix format as input
+    sapply(
+      split(mx.ind, row(mx.ind)),   # For each x, y coordinate in input mx
+      sum_neighb_each               # compute the neighbor sum
+    ),
+    c(nrow(mx), ncol(mx))      # dimensions of input
+  )  
+}
+mx.ind <- function (mx) {
+  cbind(        # create a 2 wide matrix of all possible indices in input
+    rep(seq.int(nrow(mx)), ncol(mx)), 
+    rep(seq.int(ncol(mx)), each=nrow(mx))
+  )}
+```
+
+```{r}
+fieldsolved=compute_neighb_sum(fieldmines)
+fieldsolved[fieldmines==1]=10
+```
+
+```{r}
+field=fieldsolved-fieldsolved+pi
+field[1,width]=fieldsolved[1,width]
+field[2,width]=fieldsolved[2,width]
+```
+
+#coloring
+color scheme:
+0:  255 255 255 (0 tile)
+pi: 192 192 192 (unopened tile)
+10: 128   0 255 (mine)
+e: 255 255   0 (flag)
+1:    0   0 255
+2:    0 128   0
+3:  255   0   0
+4:    0   0 128
+5:  128   0   0
+6:    0 128 128
+7:    0   0   0
+8:  128 128 128
+
+```{r}
+coloring=function(x,mat=field,ed=edgewidth,sq=squarewidth) {
+  rowx=x[1]
+  colx=x[2]
+  rowloc=(rowx-1)*sq+(rowx-1)*ed+1
+  colloc=(colx-1)*sq+(colx-1)*ed+1
+  
+  if (mat[rowx,colx]==pi) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-192
+  } else if (mat[rowx,colx]==0) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-255
+  } else if (mat[rowx,colx]==exp(1)) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(255,sq^2),rep(255,sq^2),rep(0,sq^2))
+  } else if (mat[rowx,colx]==1) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(0,sq^2),rep(0,sq^2),rep(255,sq^2))
+  } else if (mat[rowx,colx]==2) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(0,sq^2),rep(128,sq^2),rep(0,sq^2))
+  } else if (mat[rowx,colx]==3) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(255,sq^2),rep(0,sq^2),rep(0,sq^2))
+  } else if (mat[rowx,colx]==10) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(128,sq^2),rep(0,sq^2),rep(255,sq^2))
+  } else if (mat[rowx,colx]==4) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(0,sq^2),rep(0,sq^2),rep(128,sq^2))
+  } else if (mat[rowx,colx]==5) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(128,sq^2),rep(0,sq^2),rep(0,sq^2))
+  } else if (mat[rowx,colx]==6) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-c(rep(0,sq^2),rep(128,sq^2),rep(128,sq^2))
+  } else if (mat[rowx,colx]==8) {
+    fieldimg[rowloc:(rowloc+sq-1),colloc:(colloc+sq-1),]<<-128
+  }
+}
+```
+
+```{r}
+fielddims=c(width*squarewidth+(width-1)*edgewidth,height*squarewidth+(height-1)*edgewidth)
+fieldimg=array(0,dim=c(fielddims,3))
+indexmat=mx.ind(field)
+invisible(apply(indexmat,1,coloring))
+fieldimg=fieldimg/255
+writePNG(fieldimg,"Field Image.png")
+```

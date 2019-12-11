@@ -1,0 +1,67 @@
+---
+title: "minefield generator"
+author: "Bram van Smoorenburg"
+date: "27 November 2018"
+output: html_document
+---
+
+```{r}
+height=20
+width=20
+minesfrac=0.25
+```
+
+```{r}
+totmines=ceiling(minesfrac*height*width)
+fieldrand=matrix(runif(prod(height,width)),ncol = width)
+fieldrand[1,width]=fieldrand[2,width]=1
+fieldmines=fieldrand-fieldrand
+fieldmines[rank(fieldrand,ties.method = "random")<=totmines]=1
+```
+
+compute surrounding cells
+```{r}
+compute_neighb_sum <- function(mx) {
+  mx.ind <- cbind(        # create a 2 wide matrix of all possible indices in input
+    rep(seq.int(nrow(mx)), ncol(mx)), 
+    rep(seq.int(ncol(mx)), each=nrow(mx))
+  )
+  sum_neighb_each <- function(x) {
+    near.ind <- cbind(         # for each x, y coord, create an index of all surrounding values
+      rep(x[[1]] + -1:1, 3),
+      rep(x[[2]] + -1:1, each=3)
+    )
+    near.ind.val <- near.ind[  # eliminate out of bound values, or the actual x,y coord itself
+      !(
+        near.ind[, 1] < 1 | near.ind[, 1] > nrow(mx)  |
+        near.ind[, 2] < 1 | near.ind[, 2] > ncol(mx)  |
+        (near.ind[, 1] == x[[1]] & near.ind[, 2] == x[[2]])
+      ),
+     ]
+    sum(mx[near.ind.val])      # Now sum the surrounding cell values
+  }
+  `dim<-`(                     # this is just to return in same matrix format as input
+    sapply(
+      split(mx.ind, row(mx.ind)),   # For each x, y coordinate in input mx
+      sum_neighb_each               # compute the neighbor sum
+    ),
+    c(nrow(mx), ncol(mx))      # dimensions of input
+  )  
+}
+mx.ind <- function (mx) {
+  cbind(        # create a 2 wide matrix of all possible indices in input
+    rep(seq.int(nrow(mx)), ncol(mx)), 
+    rep(seq.int(ncol(mx)), each=nrow(mx))
+  )}
+```
+
+```{r}
+fieldsolved=compute_neighb_sum(fieldmines)
+fieldsolved[fieldmines==1]=10
+```
+
+```{r}
+field=fieldsolved-fieldsolved+pi
+field[1,width]=fieldsolved[1,width]
+field[2,width]=fieldsolved[2,width]
+```
